@@ -1,8 +1,8 @@
 /* eslint-disable prettier/prettier */
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import {
-  ClassSerializerInterceptor,
+  ConsoleLogger,
   HttpStatus,
   UnprocessableEntityException,
   ValidationPipe,
@@ -12,6 +12,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import compression from 'compression'
 import morgan from 'morgan'
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 export async function bootstrap(): Promise<NestExpressApplication> {
   const app = await NestFactory.create<NestExpressApplication>(
@@ -22,31 +24,26 @@ export async function bootstrap(): Promise<NestExpressApplication> {
         origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
         credentials: true,
-      }
-    },
+      },
+      logger: new ConsoleLogger({
+        prefix: 'Ovistake',
+        logLevels: ['log', 'error', 'warn', 'debug', 'verbose'],
+        colors: true,
+      }),
+    }
   );
 
+
+  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalInterceptors(new LoggingInterceptor());
   app.use(helmet());
   // app.setGlobalPrefix('/api'); use api as global prefix if you don't have subdomain
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   app.use(compression());
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   app.use(morgan('combined'));
   app.enableVersioning();
-
-  const reflector = app.get(Reflector);
-
-  // app.useGlobalFilters(
-  //   new HttpExceptionFilter(reflector),
-  //   new QueryFailedFilter(reflector),
-  // );
-
-  // app.useGlobalInterceptors(
-  //   new ClassSerializerInterceptor(reflector),
-  //   new TranslationInterceptor(
-  //     app.select(SharedModule).get(TranslationService),
-  //   ),
-  // );
+  
+  // Note: The commented-out Interceptors and Filters have been removed for clarity
+  // and because they were not fully implemented in the provided code.
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -59,14 +56,11 @@ export async function bootstrap(): Promise<NestExpressApplication> {
     }),
   );
 
-
-
-
-  const port = 3000;
-
+  const port = process.env.PORT || 3000;
   await app.listen(port);
   console.info(`server running on ${await app.getUrl()}`);
 
+  return app;
 }
 
-bootstrap();
+void bootstrap()
